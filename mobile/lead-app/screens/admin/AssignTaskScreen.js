@@ -6,9 +6,9 @@ import {
     Button,
     StyleSheet,
     Alert,
-    Picker,
     ActivityIndicator,
 } from 'react-native';
+import { Picker } from '@react-native-picker/picker'; // ✅ заменили импорт
 import axios from 'axios';
 
 const AssignTaskScreen = ({ route, navigation }) => {
@@ -77,22 +77,33 @@ const AssignTaskScreen = ({ route, navigation }) => {
             <TextInput value={title} onChangeText={setTitle} style={styles.input} />
 
             <Text style={styles.label}>Описание:</Text>
-            <TextInput value={description} onChangeText={setDescription} style={styles.input} multiline />
+            <TextInput
+                value={description}
+                onChangeText={setDescription}
+                style={styles.input}
+                multiline
+            />
 
             <Text style={styles.label}>Срок сдачи (ГГГГ-ММ-ДД):</Text>
-            <TextInput value={dueDate} onChangeText={setDueDate} style={styles.input} placeholder="2025-06-10" />
+            <TextInput
+                value={dueDate}
+                onChangeText={setDueDate}
+                style={styles.input}
+                placeholder="2025-06-10"
+            />
 
             <Text style={styles.label}>Исполнитель:</Text>
-            <Picker
-                selectedValue={assignedToId}
-                onValueChange={(itemValue) => setAssignedToId(itemValue)}
-                style={styles.input}
-            >
-                <Picker.Item label="Выберите исполнителя" value={null} />
-                {workers.map((w) => (
-                    <Picker.Item key={w.id} label={w.name} value={w.id} />
-                ))}
-            </Picker>
+            <View style={styles.pickerWrapper}>
+                <Picker
+                    selectedValue={assignedToId}
+                    onValueChange={(itemValue) => setAssignedToId(itemValue)}
+                >
+                    <Picker.Item label="Выберите исполнителя" value={null} />
+                    {workers.map((w) => (
+                        <Picker.Item key={w.id} label={w.name} value={w.id} />
+                    ))}
+                </Picker>
+            </View>
 
             <Button title="Создать задачу" onPress={handleCreate} />
         </View>
@@ -104,6 +115,8 @@ export default AssignTaskScreen;
 const styles = StyleSheet.create({
     container: {
         padding: 16,
+        backgroundColor: '#fff',
+        flex: 1,
     },
     label: {
         fontWeight: 'bold',
@@ -116,5 +129,12 @@ const styles = StyleSheet.create({
         borderRadius: 6,
         padding: 8,
         backgroundColor: '#fff',
+    },
+    pickerWrapper: {
+        borderWidth: 1,
+        borderColor: '#999',
+        borderRadius: 6,
+        backgroundColor: '#fff',
+        marginBottom: 16,
     },
 });

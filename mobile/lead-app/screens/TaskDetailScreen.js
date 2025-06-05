@@ -2,7 +2,15 @@ import React from 'react';
 import { View, Text, StyleSheet, Image, ScrollView } from 'react-native';
 
 export default function TaskDetailScreen({ route }) {
-    const { task } = route.params;
+    const { task } = route.params || {};
+
+    if (!task) {
+        return (
+            <View style={styles.errorContainer}>
+                <Text style={styles.errorText}>❌ Задача не найдена</Text>
+            </View>
+        );
+    }
 
     return (
         <ScrollView contentContainerStyle={styles.container}>
@@ -16,7 +24,7 @@ export default function TaskDetailScreen({ route }) {
             <Text style={styles.value}>{task.status}</Text>
 
             <Text style={styles.label}>Срок выполнения:</Text>
-            <Text style={styles.value}>{task.dueDate?.slice(0, 10)}</Text>
+            <Text style={styles.value}>{task.dueDate?.slice(0, 10) || '—'}</Text>
 
             <Text style={styles.label}>Исполнитель:</Text>
             <Text style={styles.value}>{task.assignedTo?.name || 'Не назначен'}</Text>
@@ -59,5 +67,17 @@ const styles = StyleSheet.create({
         width: '100%',
         marginTop: 12,
         borderRadius: 8,
+    },
+    errorContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+        backgroundColor: '#fff',
+    },
+    errorText: {
+        fontSize: 18,
+        color: 'red',
+        textAlign: 'center',
     },
 });

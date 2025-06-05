@@ -10,13 +10,16 @@ export default function CreateProjectScreen({ navigation, user }) {
 
     const handleCreate = async () => {
         try {
-            await axios.post('http://10.0.2.2:3000/api/projects', {
+
+            await axios.post(`http://10.0.2.2:3000/api/projects`, {
                 name,
                 description,
-                budget: parseFloat(budget),
-                deadline: new Date(deadline),
+                budget,
+                deadline, // ← строка вида "2025-07-01"
             }, {
-                headers: { Authorization: `Bearer ${user.token}` },
+                headers: {
+                    Authorization: `Bearer ${user.token}`,
+                },
             });
 
             Alert.alert('Проект создан');

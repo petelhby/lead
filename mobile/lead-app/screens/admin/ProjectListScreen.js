@@ -7,6 +7,7 @@ import {
     TouchableOpacity,
     StyleSheet,
     Button,
+    Alert,
 } from 'react-native';
 import axios from 'axios';
 
@@ -29,6 +30,31 @@ export default function ProjectListScreen({ navigation, user }) {
         }
     };
 
+    const handleDelete = async (id) => {
+        Alert.alert(
+            'Удалить проект',
+            'Вы уверены, что хотите удалить этот проект?',
+            [
+                { text: 'Отмена', style: 'cancel' },
+                {
+                    text: 'Удалить',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            await axios.delete(`http://10.0.2.2:3000/api/projects/${id}`, {
+                                headers: { Authorization: `Bearer ${user.token}` },
+                            });
+                            fetchProjects();
+                        } catch (err) {
+                            console.error('Ошибка при удалении проекта:', err);
+                            Alert.alert('Ошибка', 'Не удалось удалить проект');
+                        }
+                    },
+                },
+            ]
+        );
+    };
+
     useEffect(() => {
         const unsubscribe = navigation.addListener('focus', fetchProjects);
         return unsubscribe;
@@ -46,6 +72,13 @@ export default function ProjectListScreen({ navigation, user }) {
                 <Button
                     title="Ред."
                     onPress={() => navigation.navigate('EditProject', { project: item, user })}
+                />
+            </View>
+            <View style={styles.deleteButton}>
+                <Button
+                    title="🗑"
+                    color="#cc0000"
+                    onPress={() => handleDelete(item.id)}
                 />
             </View>
         </View>
@@ -96,6 +129,9 @@ const styles = StyleSheet.create({
     },
     editButton: {
         marginLeft: 12,
+    },
+    deleteButton: {
+        marginLeft: 8,
     },
     createButton: {
         paddingHorizontal: 16,

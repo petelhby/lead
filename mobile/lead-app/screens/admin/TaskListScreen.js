@@ -5,16 +5,25 @@ import {
     StyleSheet,
     Image,
     ScrollView,
-    TextInput,
     Button,
     Alert,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import axios from 'axios';
 
-export default function TaskDetailScreen({ route }) {
-    const { task, user } = route.params;
-    const [status, setStatus] = useState(task.status);
+export default function TaskDetailScreen({ route, navigation }) {
+    const { task, user } = route.params || {};
+    const [status, setStatus] = useState(task?.status || '');
+
+    if (!task || !user) {
+        return (
+            <View style={styles.container}>
+                <Text style={{ color: 'red', textAlign: 'center' }}>
+                    ❌ Нет данных задачи
+                </Text>
+            </View>
+        );
+    }
 
     const handleStatusChange = async () => {
         try {
@@ -42,13 +51,13 @@ export default function TaskDetailScreen({ route }) {
             <Text style={styles.value}>{task.description || '—'}</Text>
 
             <Text style={styles.label}>Срок выполнения:</Text>
-            <Text style={styles.value}>{task.dueDate?.slice(0, 10)}</Text>
+            <Text style={styles.value}>{task.dueDate?.slice(0, 10) || '—'}</Text>
 
             <Text style={styles.label}>Исполнитель:</Text>
             <Text style={styles.value}>{task.assignedTo?.name || 'Не назначен'}</Text>
 
             <Text style={styles.label}>Статус:</Text>
-            <Text style={styles.value}>{task.status}</Text>
+            <Text style={styles.value}>{status}</Text>
 
             {task.report && (
                 <>
@@ -81,6 +90,18 @@ export default function TaskDetailScreen({ route }) {
                         <Picker.Item label="Закрыта" value="Закрыта" />
                     </Picker>
                     <Button title="Обновить статус" onPress={handleStatusChange} />
+
+                    <View style={{ marginTop: 20 }}>
+                        <Button
+                            title="Назначить новую задачу"
+                            onPress={() =>
+                                navigation.navigate('AssignTask', {
+                                    projectId: task.projectId,
+                                    user,
+                                })
+                            }
+                        />
+                    </View>
                 </>
             )}
         </ScrollView>
