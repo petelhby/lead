@@ -5,6 +5,7 @@ const {
     getAllProjects,
     updateProjectStatus,
     deleteProject,
+    updateProject,
 } = require('../controllers/project.controller');
 
 const { verifyToken, requireRole } = require('../middlewares/auth.middleware');
@@ -15,8 +16,7 @@ router.use(verifyToken);
 router.post('/', requireRole('ADMIN'), createProject);
 router.get('/', getAllProjects);
 router.patch('/:id/status', requireRole('ADMIN'), updateProjectStatus);
-router.delete('/:id', requireRole('ADMIN'), deleteProject);
+router.patch('/:id', requireRole('ADMIN'), updateProject);
+router.delete('/:id', requireRole('ADMIN'), deleteProject); // ✅ Оставляем один раз
 
 module.exports = router;
-router.patch('/:id', requireRole('ADMIN'), updateProject);
-router.delete('/:id', requireRole('ADMIN'), deleteProject);
