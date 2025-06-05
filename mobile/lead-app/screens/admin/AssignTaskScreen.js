@@ -4,119 +4,98 @@ import {
     Text,
     TextInput,
     Button,
-    ActivityIndicator,
     StyleSheet,
     Alert,
     Picker,
-    ScrollView,
+    ActivityIndicator,
 } from 'react-native';
 import axios from 'axios';
 
-const AssignTaskScreen = ({ user, navigation }) => {
+const AssignTaskScreen = ({ route, navigation }) => {
+    const { project, user } = route.params;
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
-    const [users, setUsers] = useState([]);
-    const [projects, setProjects] = useState([]);
-    const [selectedUser, setSelectedUser] = useState('');
-    const [selectedProject, setSelectedProject] = useState('');
+    const [dueDate, setDueDate] = useState('');
+    const [assignedToId, setAssignedToId] = useState(null);
+    const [workers, setWorkers] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    const fetchData = async () => {
+    const fetchWorkers = async () => {
         try {
-            const [userRes, projectRes] = await Promise.all([
-                axios.get('http://10.0.2.2:3000/users', {
-                    headers: { Authorization: `Bearer ${user.token}` },
-                }),
-                axios.get('http://10.0.2.2:3000/projects', {
-                    headers: { Authorization: `Bearer ${user.token}` },
-                }),
-            ]);
-            setUsers(userRes.data);
-            setProjects(projectRes.data);
+            const response = await axios.get('http://10.0.2.2:3000/api/users/workers', {
+                headers: {
+                    Authorization: `Bearer ${user.token}`,
+                },
+            });
+            setWorkers(response.data);
         } catch (err) {
-            Alert.alert('Ошибка', 'Не удалось загрузить данные');
+            Alert.alert('Ошибка', 'Не удалось загрузить исполнителей');
         } finally {
             setLoading(false);
         }
     };
 
     useEffect(() => {
-        fetchData();
+        fetchWorkers();
     }, []);
 
-    const handleAssign = async () => {
-        if (!title || !description || !selectedUser || !selectedProject) {
-            return Alert.alert('Ошибка', 'Заполните все поля');
+    const handleCreate = async () => {
+        if (!title || !assignedToId || !dueDate) {
+            Alert.alert('Ошибка', 'Заполните все поля');
+            return;
         }
 
         try {
             await axios.post(
-                'http://10.0.2.2:3000/tasks',
+                'http://10.0.2.2:3000/api/tasks',
                 {
                     title,
                     description,
-                    assignedTo: selectedUser,
-                    projectId: selectedProject,
+                    dueDate,
+                    assignedToId,
+                    projectId: project.id,
                 },
                 {
-                    headers: { Authorization: `Bearer ${user.token}` },
+                    headers: {
+                        Authorization: `Bearer ${user.token}`,
+                    },
                 }
             );
+
             Alert.alert('Успех', 'Задача создана');
             navigation.goBack();
         } catch (err) {
-            console.error(err);
             Alert.alert('Ошибка', 'Не удалось создать задачу');
         }
     };
 
-    if (loading) return <ActivityIndicator style={{ marginTop: 40 }} />;
+    if (loading) return <ActivityIndicator size="large" style={{ marginTop: 32 }} />;
 
     return (
-        <ScrollView contentContainerStyle={styles.container}>
-            <Text style={styles.label}>Название задачи</Text>
-            <TextInput
+        <View style={styles.container}>
+            <Text style={styles.label}>Название:</Text>
+            <TextInput value={title} onChangeText={setTitle} style={styles.input} />
+
+            <Text style={styles.label}>Описание:</Text>
+            <TextInput value={description} onChangeText={setDescription} style={styles.input} multiline />
+
+            <Text style={styles.label}>Срок сдачи (ГГГГ-ММ-ДД):</Text>
+            <TextInput value={dueDate} onChangeText={setDueDate} style={styles.input} placeholder="2025-06-10" />
+
+            <Text style={styles.label}>Исполнитель:</Text>
+            <Picker
+                selectedValue={assignedToId}
+                onValueChange={(itemValue) => setAssignedToId(itemValue)}
                 style={styles.input}
-                value={title}
-                onChangeText={setTitle}
-                placeholder="Введите название"
-            />
-
-            <Text style={styles.label}>Описание</Text>
-            <TextInput
-                style={[styles.input, { height: 80 }]}
-                value={description}
-                onChangeText={setDescription}
-                placeholder="Введите описание"
-                multiline
-            />
-
-            <Text style={styles.label}>Проект</Text>
-            <Picker
-                selectedValue={selectedProject}
-                onValueChange={(value) => setSelectedProject(value)}
             >
-                <Picker.Item label="Выберите проект" value="" />
-                {projects.map((proj) => (
-                    <Picker.Item key={proj.id} label={proj.title} value={proj.id} />
+                <Picker.Item label="Выберите исполнителя" value={null} />
+                {workers.map((w) => (
+                    <Picker.Item key={w.id} label={w.name} value={w.id} />
                 ))}
             </Picker>
 
-            <Text style={styles.label}>Назначить на</Text>
-            <Picker
-                selectedValue={selectedUser}
-                onValueChange={(value) => setSelectedUser(value)}
-            >
-                <Picker.Item label="Выберите пользователя" value="" />
-                {users.map((u) => (
-                    <Picker.Item key={u.id} label={u.name} value={u.id} />
-                ))}
-            </Picker>
-
-            <View style={{ marginTop: 20 }}>
-                <Button title="Создать задачу" onPress={handleAssign} />
-            </View>
-        </ScrollView>
+            <Button title="Создать задачу" onPress={handleCreate} />
+        </View>
     );
 };
 

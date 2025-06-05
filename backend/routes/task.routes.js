@@ -9,6 +9,7 @@ const {
     getTasksForUser,
     updateTaskReport,
     getAllTasks,
+    updateTaskStatus,
 } = require('../controllers/task.controller');
 
 const { verifyToken, requireRole } = require('../middlewares/auth.middleware');
@@ -18,9 +19,10 @@ router.use(verifyToken);
 // Только админ
 router.post('/', requireRole('ADMIN'), createTask);
 router.get('/all', requireRole('ADMIN'), getAllTasks);
+router.patch('/:id/status', requireRole('ADMIN'), updateTaskStatus);
 
 // Работник
 router.get('/my', getTasksForUser);
-router.patch('/:id/report', upload.single('photo'), updateTaskReport); // ✅ только один раз!
+router.patch('/:id/report', upload.single('photo'), updateTaskReport);
 
 module.exports = router;

@@ -56,15 +56,32 @@ const deleteProject = async (req, res) => {
             where: { id: Number(id) },
         });
 
-        res.json({ message: 'Project deleted' });
+        res.json({ message: 'Проект удалён' });
     } catch (err) {
-        res.status(500).json({ message: 'Error deleting project', error: err.message });
+        res.status(500).json({ message: 'Ошибка при удалении проекта', error: err.message });
+    }
+};
+
+
+const updateProject = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name } = req.body;
+
+        const updated = await prisma.project.update({
+            where: { id: Number(id) },
+            data: { name },
+        });
+
+        res.json(updated);
+    } catch (err) {
+        res.status(500).json({ message: 'Ошибка при обновлении проекта', error: err.message });
     }
 };
 
 module.exports = {
     createProject,
     getAllProjects,
-    updateProjectStatus,
+    updateProject,
     deleteProject,
 };

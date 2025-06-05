@@ -18,3 +18,5 @@ router.patch('/:id/status', requireRole('ADMIN'), updateProjectStatus);
 router.delete('/:id', requireRole('ADMIN'), deleteProject);
 
 module.exports = router;
+router.patch('/:id', requireRole('ADMIN'), updateProject);
+router.delete('/:id', requireRole('ADMIN'), deleteProject);

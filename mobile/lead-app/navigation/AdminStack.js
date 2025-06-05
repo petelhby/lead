@@ -5,6 +5,7 @@ import CreateProjectScreen from '../screens/admin/CreateProjectScreen';
 import TaskListScreen from '../screens/admin/TaskListScreen';
 import AssignTaskScreen from '../screens/admin/AssignTaskScreen';
 import TaskDetailScreen from '../screens/TaskDetailScreen'; // ✅ добавляем
+import EditProjectScreen from '../screens/admin/EditProjectScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -25,6 +26,9 @@ export default function AdminStack({ user }) {
             </Stack.Screen>
             <Stack.Screen name="TaskDetailScreen" options={{ title: 'Детали задачи' }}>
                 {(props) => <TaskDetailScreen {...props} user={user} />}
+            </Stack.Screen>
+            <Stack.Screen name="EditProject" options={{ title: 'Редактировать проект' }}>
+                {(props) => <EditProjectScreen {...props} user={user} />}
             </Stack.Screen>
         </Stack.Navigator>
     );
