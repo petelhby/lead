@@ -40,7 +40,6 @@ const getTasksForUser = async (req, res) => {
 const getAllTasks = async (req, res) => {
     try {
         const projectId = req.query.projectId;
-
         const where = projectId ? { projectId: Number(projectId) } : {};
 
         const tasks = await prisma.task.findMany({
@@ -60,13 +59,12 @@ const getAllTasks = async (req, res) => {
 const updateTaskReport = async (req, res) => {
     try {
         const { id } = req.params;
-        const { report } = req.body;
-        const file = req.file;
+        const { report, status } = req.body;
+        const files = req.files?.photo || [];
 
-        let photoUrl = null;
+        let photoUrls = [];
 
-        if (file) {
-            // Получаем задачу и проект
+        if (files && files.length > 0) {
             const task = await prisma.task.findUnique({
                 where: { id: Number(id) },
                 include: { project: true },
@@ -74,23 +72,24 @@ const updateTaskReport = async (req, res) => {
 
             const projectSlug = slugify(task.project.name, { lower: true });
             const taskSlug = slugify(task.title, { lower: true });
-
             const folderPath = path.join(__dirname, '..', 'uploads', projectSlug, taskSlug);
             fs.mkdirSync(folderPath, { recursive: true });
 
-            const fileName = `${Date.now()}_${file.originalname}`;
-            const filePath = path.join(folderPath, fileName);
-            fs.writeFileSync(filePath, file.buffer);
-
-            photoUrl = path.join('uploads', projectSlug, taskSlug, fileName).replace(/\\/g, '/');
+            for (const file of files) {
+                const fileName = `${Date.now()}_${file.originalname}`;
+                const filePath = path.join(folderPath, fileName);
+                fs.writeFileSync(filePath, file.buffer);
+                const relativePath = path.join('uploads', projectSlug, taskSlug, fileName).replace(/\\/g, '/');
+                photoUrls.push(relativePath);
+            }
         }
 
         const updated = await prisma.task.update({
             where: { id: Number(id) },
             data: {
                 report,
-                photoUrl,
-                status: 'Выполнен, требует проверки',
+                photoUrl: photoUrls, // теперь целый массив
+                status: status || 'Выполнен, требует проверки',
             },
         });
 

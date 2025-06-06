@@ -26,6 +26,8 @@ app.use('/api/users', userRoutes);
 app.get('/', (req, res) => {
     res.send('API is working');
 });
+const taskEntryRoutes = require('./routes/taskEntry.routes');
+app.use('/api/tasks', taskEntryRoutes); // ✅ маршрут для вложенных записей
 
 module.exports = app;
 
