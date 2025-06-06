@@ -1,117 +1,82 @@
-import React, { useState } from 'react';
-import {
-    View,
-    Text,
-    StyleSheet,
-    Image,
-    ScrollView,
-    Button,
-    Alert,
-} from 'react-native';
-import { Picker } from '@react-native-picker/picker';
+import React, { useEffect, useState } from 'react';
+import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, Button, StyleSheet } from 'react-native';
 import axios from 'axios';
 
-export default function TaskDetailScreen({ route, navigation }) {
-    const { task, user } = route.params || {};
-    const [status, setStatus] = useState(task?.status || '');
+export default function TaskListScreen({ route, navigation }) {
+    const { project, user } = route.params;
+    const [tasks, setTasks] = useState([]);
+    const [loading, setLoading] = useState(true);
 
-    if (!task || !user) {
-        return (
-            <View style={styles.container}>
-                <Text style={{ color: 'red', textAlign: 'center' }}>
-                    ❌ Нет данных задачи
-                </Text>
-            </View>
-        );
-    }
-
-    const handleStatusChange = async () => {
+    const fetchTasks = async () => {
         try {
-            await axios.patch(
-                `http://10.0.2.2:3000/api/tasks/${task.id}/status`,
-                { status },
-                {
-                    headers: {
-                        Authorization: `Bearer ${user.token}`,
-                    },
-                }
-            );
-            Alert.alert('Успех', 'Статус задачи обновлён');
+            const response = await axios.get(`http://10.0.2.2:3000/api/tasks/all?projectId=${project.id}`, {
+                headers: {
+                    Authorization: `Bearer ${user.token}`,
+                },
+            });
+            setTasks(response.data);
         } catch (err) {
-            Alert.alert('Ошибка', 'Не удалось обновить статус');
+            console.error('Ошибка при загрузке задач:', err);
+        } finally {
+            setLoading(false);
         }
     };
 
+    useEffect(() => {
+        const unsubscribe = navigation.addListener('focus', fetchTasks);
+        return unsubscribe;
+    }, [navigation]);
+
+    const renderItem = ({ item }) => (
+        <TouchableOpacity
+            style={styles.taskItem}
+            onPress={() => navigation.navigate('TaskDetailScreen', { task: item, user })}
+        >
+            <Text style={styles.taskTitle}>{item.title}</Text>
+            <Text style={styles.taskStatus}>{item.status}</Text>
+        </TouchableOpacity>
+    );
+
+    if (loading) return <ActivityIndicator size="large" style={{ marginTop: 32 }} />;
+
     return (
-        <ScrollView contentContainerStyle={styles.container}>
-            <Text style={styles.label}>Название:</Text>
-            <Text style={styles.value}>{task.title}</Text>
-
-            <Text style={styles.label}>Описание:</Text>
-            <Text style={styles.value}>{task.description || '—'}</Text>
-
-            <Text style={styles.label}>Срок выполнения:</Text>
-            <Text style={styles.value}>{task.dueDate?.slice(0, 10) || '—'}</Text>
-
-            <Text style={styles.label}>Исполнитель:</Text>
-            <Text style={styles.value}>{task.assignedTo?.name || 'Не назначен'}</Text>
-
-            <Text style={styles.label}>Статус:</Text>
-            <Text style={styles.value}>{status}</Text>
-
-            {task.report && (
-                <>
-                    <Text style={styles.label}>Отчёт:</Text>
-                    <Text style={styles.value}>{task.report}</Text>
-                </>
-            )}
-
-            {task.photoUrl && (
-                <>
-                    <Text style={styles.label}>Фотоотчёт:</Text>
-                    <Image
-                        source={{ uri: `http://10.0.2.2:3000/${task.photoUrl}` }}
-                        style={styles.image}
-                    />
-                </>
-            )}
-
-            {user.role === 'ADMIN' && (
-                <>
-                    <Text style={styles.label}>Изменить статус:</Text>
-                    <Picker
-                        selectedValue={status}
-                        onValueChange={(value) => setStatus(value)}
-                        style={styles.picker}
-                    >
-                        <Picker.Item label="Новая" value="Новая" />
-                        <Picker.Item label="Принят к исполнению" value="Принят к исполнению" />
-                        <Picker.Item label="Выполнен, требует проверки" value="Выполнен, требует проверки" />
-                        <Picker.Item label="Закрыта" value="Закрыта" />
-                    </Picker>
-                    <Button title="Обновить статус" onPress={handleStatusChange} />
-
-                    <View style={{ marginTop: 20 }}>
-                        <Button
-                            title="Назначить новую задачу"
-                            onPress={() =>
-                                navigation.navigate('AssignTask', {
-                                    projectId: task.projectId,
-                                    user,
-                                })
-                            }
-                        />
-                    </View>
-                </>
-            )}
-        </ScrollView>
+        <View style={styles.container}>
+            <FlatList
+                data={tasks}
+                keyExtractor={(item) => item.id.toString()}
+                renderItem={renderItem}
+                contentContainerStyle={{ padding: 16 }}
+            />
+            <View style={styles.buttonContainer}>
+                <Button
+                    title="Назначить задачу"
+                    onPress={() => navigation.navigate('AssignTask', { project, user })}
+                />
+            </View>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { padding: 16, backgroundColor: '#fff' },
-    label: { fontWeight: 'bold', marginTop: 12 },
-    value: { fontSize: 16, marginTop: 4 },
-    image: { height: 200, width: '100%', marginTop: 12, borderRadius: 8 },
-    picker: { backgroundColor: '#eee', marginTop: 8, marginBottom: 16 },
+    container: {
+        flex: 1,
+        backgroundColor: '#fff',
+    },
+    taskItem: {
+        padding: 12,
+        backgroundColor: '#f0f0f0',
+        marginBottom: 12,
+        borderRadius: 8,
+    },
+    taskTitle: {
+        fontWeight: 'bold',
+        fontSize: 16,
+    },
+    taskStatus: {
+        color: '#777',
+        marginTop: 4,
+    },
+    buttonContainer: {
+        padding: 16,
+    },
 });
