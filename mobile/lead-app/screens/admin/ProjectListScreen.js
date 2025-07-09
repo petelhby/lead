@@ -10,6 +10,7 @@ import {
     Alert,
 } from 'react-native';
 import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function ProjectListScreen({ navigation, user }) {
     const [projects, setProjects] = useState([]);
@@ -55,9 +56,21 @@ export default function ProjectListScreen({ navigation, user }) {
         );
     };
 
+    const handleLogout = async () => {
+        await AsyncStorage.removeItem('user');
+    };
+
     useEffect(() => {
         const unsubscribe = navigation.addListener('focus', fetchProjects);
         return unsubscribe;
+    }, [navigation]);
+
+    useEffect(() => {
+        navigation.setOptions({
+            headerRight: () => (
+                <Button title="Выйти" color="#cc0000" onPress={handleLogout} />
+            ),
+        });
     }, [navigation]);
 
     const renderItem = ({ item }) => (
