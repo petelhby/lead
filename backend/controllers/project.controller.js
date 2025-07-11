@@ -1,7 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-// ✅ createProject
+// ✅ Создание проекта
 const createProject = async (req, res) => {
     try {
         const { name, description, budget, deadline } = req.body;
@@ -11,7 +11,7 @@ const createProject = async (req, res) => {
                 name,
                 description,
                 budget: Number(budget),
-                deadline: new Date(deadline), // ✅ обязательно приводим к Date
+                deadline: new Date(deadline),
                 createdById: req.user.id,
             },
         });
@@ -23,9 +23,34 @@ const createProject = async (req, res) => {
     }
 };
 
+// ✅ Получение всех проектов (добавлен createdAt)
+const getAllProjects = async (req, res) => {
+    try {
+        const projects = await prisma.project.findMany({
+            select: {
+                id: true,
+                name: true,
+                description: true,
+                budget: true,
+                status: true,
+                deadline: true,
+                createdById: true,
+                userId: true,
+                createdAt: true, // ✅ теперь возвращается
+            },
+            orderBy: {
+                createdAt: 'desc',
+            },
+        });
 
+        res.json(projects);
+    } catch (error) {
+        console.error('Ошибка при получении проектов:', error);
+        res.status(500).json({ message: 'Ошибка при получении проектов', error: error.message });
+    }
+};
 
-// ✅ остальные обработчики тоже должны быть тут
+// ✅ Обновление проекта
 const updateProject = async (req, res) => {
     try {
         const { id } = req.params;
@@ -38,28 +63,29 @@ const updateProject = async (req, res) => {
 
         res.json(updated);
     } catch (error) {
+        console.error('Ошибка при обновлении проекта:', error);
         res.status(500).json({ message: 'Ошибка при обновлении проекта', error: error.message });
     }
 };
 
-// Пример заглушек, если нужно
-const getAllProjects = async (req, res) => {
-    const all = await prisma.project.findMany();
-    res.json(all);
-};
-const updateProjectStatus = async (req, res) => { /* ... */ };
+// ✅ Удаление проекта и связанных задач
 const deleteProject = async (req, res) => {
     const { id } = req.params;
 
     try {
-        await prisma.task.deleteMany({ where: { projectId: Number(id) } }); // удалить задачи проекта
+        await prisma.task.deleteMany({ where: { projectId: Number(id) } });
         await prisma.project.delete({ where: { id: Number(id) } });
 
         res.json({ message: 'Проект удалён' });
     } catch (error) {
         console.error('Ошибка при удалении проекта:', error);
-        res.status(500).json({ message: 'Ошибка при удалении проекта' });
+        res.status(500).json({ message: 'Ошибка при удалении проекта', error: error.message });
     }
+};
+
+// Заглушка для обновления статуса
+const updateProjectStatus = async (req, res) => {
+    // реализация при необходимости
 };
 
 module.exports = {
@@ -69,4 +95,3 @@ module.exports = {
     updateProjectStatus,
     deleteProject,
 };
-// Добавь сюда остальные функции, как в примере выше
