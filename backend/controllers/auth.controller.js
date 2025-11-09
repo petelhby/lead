@@ -33,10 +33,10 @@ const login = async (req, res) => {
         const { email, password } = req.body;
 
         const user = await prisma.user.findUnique({ where: { email } });
-        if (!user) return res.status(404).json({ message: 'User not found' });
+        if (!user) return res.status(404).json({ message: 'Пользователь не найден' });
 
         const isValid = await bcrypt.compare(password, user.password);
-        if (!isValid) return res.status(401).json({ message: 'Invalid credentials' });
+        if (!isValid) return res.status(401).json({ message: 'Неверный логин или пароль' });
 
         const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '7d' });
 

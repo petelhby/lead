@@ -3,8 +3,8 @@ const sequelize = require('./config/database'); // если бы мы были �
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-// const PORT = process.env.PORT || 3000;
-const PORT = 3000;
+// const PORT = process.env.PORT || 3001;
+const PORT = 3001;
 
 app.listen(PORT, '0.0.0.0', async () => {
     try {
