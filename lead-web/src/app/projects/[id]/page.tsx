@@ -17,9 +17,13 @@ export default function ProjectTasks() {
     // Бэкенд не имеет GET /api/tasks?projectId=...
     // Берём /api/tasks/all и фильтруем по projectId на клиенте
     api(`/api/tasks/all`, { auth: true })
-      .then((list: Task[]) => setItems(list.filter(t => Number(t.projectId) === projectId)))
+      .then((list: Task[]) => {
+        console.log("SAMPLE TASK", list[0]);
+        setItems(list.filter((t: Task) => Number(t.projectId) === projectId));
+      })
       .catch(e => setError(e.message));
   }, [projectId]);
+
 
   return (
     <div className="space-y-4">
@@ -36,5 +40,6 @@ export default function ProjectTasks() {
         {items.length === 0 && <div className="text-sm text-slate-600">Задач для этого проекта нет</div>}
       </div>
     </div>
+
   );
 }

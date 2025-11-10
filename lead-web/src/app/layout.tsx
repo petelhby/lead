@@ -19,3 +19,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     </html>
   );
 }
+export const metadata = {
+  // …твои остальные поля
+  icons: {
+    icon: '/logo.png',      // обычный фавикон
+    shortcut: '/logo.png',  // <link rel="shortcut icon">
+    apple: '/logo.png',     // для iOS
+  },
+};
