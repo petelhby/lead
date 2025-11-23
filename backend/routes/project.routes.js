@@ -1,22 +1,33 @@
 const express = require('express');
 const router = express.Router();
+
 const {
     createProject,
     getAllProjects,
+    getProjectById,
+    updateProject,
     updateProjectStatus,
     deleteProject,
-    updateProject,
 } = require('../controllers/project.controller');
 
 const { verifyToken, requireRole } = require('../middlewares/auth.middleware');
 
 router.use(verifyToken);
 
-// Только админ
+// Создание (только админ)
 router.post('/', requireRole('ADMIN'), createProject);
+
+// Список + деталь
 router.get('/', getAllProjects);
+router.get('/:id', getProjectById);
+
+// Обновление проекта целиком
+router.put('/:id', requireRole('ADMIN'), updateProject);
+
+// Обновление только статуса
 router.patch('/:id/status', requireRole('ADMIN'), updateProjectStatus);
-router.patch('/:id', requireRole('ADMIN'), updateProject);
-router.delete('/:id', requireRole('ADMIN'), deleteProject); // ✅ Оставляем один раз
+
+// Удаление
+router.delete('/:id', requireRole('ADMIN'), deleteProject);
 
 module.exports = router;

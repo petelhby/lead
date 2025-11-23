@@ -6,6 +6,14 @@ import { getToken, setToken } from "@/lib/api";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
+type Me = {
+  id?: number | string;
+  name?: string;
+  fullName?: string;
+  email?: string;
+  role?: string;
+};
+
 export default function Topbar() {
   const r = useRouter();
   const pathname = usePathname();
@@ -13,18 +21,68 @@ export default function Topbar() {
   // На странице входа верхнее меню не показываем
   if (pathname === "/") return null;
 
-  // Чтобы не было ошибок гидрации: определяем авторизацию только после монтирования
+  // Пост-монтажный флаг (чтобы избежать несоответствий SSR/CSR)
   const [mounted, setMounted] = useState(false);
   const [authed, setAuthed] = useState(false);
+  const [me, setMe] = useState<{ id: number; name?: string; role?: string } | null>(null);
+  const [loadingMe, setLoadingMe] = useState(false);
 
+  // Инициализируем состояние авторизации
   useEffect(() => {
     setMounted(true);
     try {
-      setAuthed(!!getToken());
-    } catch {
-      setAuthed(false);
-    }
+      const has = !!getToken();
+      setAuthed(has);
+      if (has) {
+        // подтягиваем имя
+        fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:3001'}/api/users/me`, {
+          headers: { Authorization: `Bearer ${getToken()}` },
+        })
+          .then(r => r.ok ? r.json() : null)
+          .then(data => setMe(data))
+          .catch(() => { });
+      }
+    } catch { setAuthed(false); }
   }, []);
+
+  // Подтягиваем профиль, когда есть токен
+  useEffect(() => {
+    if (!mounted || !authed) {
+      setMe(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoadingMe(true);
+        const profile = await fetch("/api/users/me", {
+          headers: { Authorization: `Bearer ${getToken()}` },
+        }).then((res) => {
+          if (!res.ok) throw new Error("Unauthorized");
+          return res.json();
+        });
+
+        if (!cancelled) setMe(profile);
+      } catch {
+        // Токен мог протухнуть — считаем, что не авторизованы
+        if (!cancelled) {
+          setMe(null);
+          setAuthed(false);
+        }
+      } finally {
+        if (!cancelled) setLoadingMe(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [mounted, authed]);
+
+  const displayName =
+    (me?.name && String(me.name).trim()) ||
+    (me?.fullName && String(me.fullName).trim()) ||
+    (me?.email && String(me.email).trim()) ||
+    (authed ? "Пользователь" : "");
 
   return (
     <div className="w-full h-12 border-b bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60">
@@ -32,13 +90,11 @@ export default function Topbar() {
         {/* ЛОГО + бренд */}
         <div className="flex items-center gap-3">
           <Link href="/projects" className="flex items-center gap-2">
-            {/* кладём файл в /public/logo.png */}
             <Image
               src="/logo.png"
               alt="LEAD mark"
               width={24}
               height={24}
-              // фикс ворнинга Next/Image, если где-то переопределяется размер
               style={{ height: "auto", width: 24 }}
               priority
             />
@@ -50,40 +106,22 @@ export default function Topbar() {
           {/* Навигация */}
           <nav className="ml-6 hidden sm:flex items-center gap-4 text-sm text-slate-700">
             <Link href="/projects" className="hover:text-[#0160C9]">
-              Объекты
+              Проекты
             </Link>
-            <Link href="#" className="hover:text-[#0160C9]">
-              Подрядчики
-            </Link>
+            {/* можно добавить другие пункты */}
           </nav>
         </div>
 
         {/* Правая зона */}
         <div className="flex items-center gap-3">
-          <span className="text-sm text-slate-700 hidden sm:inline">admin</span>
-
-          {/* Синяя кнопка “Настройки” */}
-          <button
-            className="px-3 py-1 rounded-full text-white text-sm bg-[#0160C9] hover:bg-[#0352a8] active:scale-[0.98] transition"
-            onClick={() => {
-              // TODO: открой модал/страницу настроек
-              // r.push('/settings');
-            }}
-          >
-            Настройки
-          </button>
-
-          {/* Кнопка «Выйти»: показываем только после монтирования, 
-              но держим плейсхолдер для совпадения DOM при SSR */}
+          {me?.name && (
+            <span className="text-sm text-slate-700 hidden sm:inline">{me.name}</span>
+          )}
           {mounted ? (
             authed ? (
               <button
                 className="text-sm underline text-slate-600 hover:text-slate-900"
-                onClick={() => {
-                  setToken(null);
-                  setAuthed(false);
-                  r.push("/");
-                }}
+                onClick={() => { setToken(null); setAuthed(false); window.location.href = '/'; }}
               >
                 Выйти
               </button>

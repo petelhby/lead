@@ -1,72 +1,131 @@
-const { PrismaClient } = require('@prisma/client');
+const path = require("path");
+const fs = require("fs");
+const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
-const path = require('path');
-const fs = require('fs');
-const slugify = require('slugify');
 
+/** Приводим путь к виду '/uploads/xxx.jpg' + слэши -> '/' */
+function normalizeStoredPath(absOrRel) {
+    if (!absOrRel) return absOrRel;
+    const s = String(absOrRel).replace(/\\/g, "/");
+    if (/^\/uploads\//.test(s)) return s;
+    const name = s.split("/").pop();
+    return name ? `/uploads/${name}` : s;
+}
+
+function isAdmin(req) {
+    return req?.user?.role === "ADMIN";
+}
+
+/** Создать запись (комментарий и/или фото) */
 const createTaskEntry = async (req, res) => {
     try {
-        const { id } = req.params;
-        const { report, status } = req.body;
-        const files = req.files || [];
+        if (!req.user?.id) {
+            return res.status(401).json({ message: "Требуется авторизация" });
+        }
 
-        const task = await prisma.task.findUnique({
-            where: { id: Number(id) },
-            include: { project: true },
-        });
+        const taskId = Number(req.params.id);
+        if (!taskId) {
+            return res.status(400).json({ message: "Некорректный идентификатор задачи" });
+        }
 
-        if (!task) return res.status(404).json({ message: 'Задача не найдена' });
+        const report =
+            typeof req.body?.report === "string" ? req.body.report.trim() : "";
 
-        const projectSlug = slugify(task.project.name, { lower: true });
-        const taskSlug = slugify(task.title, { lower: true });
-        const folderPath = path.join(__dirname, '..', 'uploads', projectSlug, taskSlug);
-        fs.mkdirSync(folderPath, { recursive: true });
-
-        const photoUrls = files.map((file) => {
-            const fileName = `${Date.now()}_${file.originalname}`;
-            const filePath = path.join(folderPath, fileName);
-            fs.writeFileSync(filePath, file.buffer);
-            return path.join('uploads', projectSlug, taskSlug, fileName).replace(/\\/g, '/');
-        });
+        // Ожидаем, что файлы уже сохранены в /uploads (multer.diskStorage в роуте)
+        const photosRaw = (req.files || []).map((f) => f.path || f.filename || "");
+        const photos = photosRaw.map(normalizeStoredPath).filter(Boolean);
 
         const newEntry = await prisma.taskEntry.create({
             data: {
-                taskId: Number(id),
-                report,
-                photos: photoUrls,
+                taskId,
+                report,              // пустая строка допустима
+                photos,              // массив строк '/uploads/..'
                 authorId: req.user.id,
             },
         });
 
-        // Обновим статус задачи, если передан
-        if (status) {
-            await prisma.task.update({
-                where: { id: Number(id) },
-                data: { status },
-            });
-        }
-
         res.status(201).json(newEntry);
-    } catch (err) {
-        console.error('Ошибка при создании записи:', err);
-        res.status(500).json({ message: 'Не удалось создать запись', error: err.message });
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ message: "Не удалось создать запись", error: e.message });
     }
 };
 
+/** Получить все записи задачи (с автором) */
 const getTaskEntries = async (req, res) => {
     try {
         const { id } = req.params;
+        const taskId = Number(id);
+        if (!taskId) {
+            return res.status(400).json({ message: "Некорректный идентификатор задачи" });
+        }
+
         const entries = await prisma.taskEntry.findMany({
-            where: { taskId: Number(id) },
+            where: { taskId },
             include: {
-                author: { select: { name: true } },
+                author: { select: { id: true, name: true, role: true } },
             },
-            orderBy: { createdAt: 'asc' },
+            orderBy: { createdAt: "asc" },
         });
+
         res.json(entries);
     } catch (err) {
-        res.status(500).json({ message: 'Ошибка при получении записей', error: err.message });
+        console.error(err);
+        res.status(500).json({ message: "Ошибка при получении записей", error: err.message });
     }
 };
 
-module.exports = { createTaskEntry, getTaskEntries };
+/**
+ * Удалить запись:
+ *  - ADMIN может удалить любую
+ *  - иначе — только автор
+ */
+const deleteTaskEntry = async (req, res) => {
+    try {
+        if (!req.user?.id) {
+            return res.status(401).json({ message: "Требуется авторизация" });
+        }
+
+        const taskId = Number(req.params.taskId);
+        const entryId = Number(req.params.entryId);
+        if (!taskId || !entryId) {
+            return res.status(400).json({ message: "Некорректные идентификаторы" });
+        }
+
+        const entry = await prisma.taskEntry.findUnique({
+            where: { id: entryId },
+            include: { author: { select: { id: true } } },
+        });
+
+        if (!entry || entry.taskId !== taskId) {
+            return res.status(404).json({ message: "Запись не найдена" });
+        }
+
+        const can =
+            isAdmin(req) ||
+            (entry.author?.id && entry.author.id === req.user.id);
+
+        if (!can) {
+            return res.status(403).json({ message: "Недостаточно прав" });
+        }
+
+        // Если захочешь удалять файлы физически — раскомментируй:
+        // (Сохраняем только безопасные базовые имена, чтобы не уйти за пределы каталога)
+        // for (const p of entry.photos || []) {
+        //   if (!p) continue;
+        //   const base = path.basename(p); // защита от '../'
+        //   const abs = path.resolve(process.cwd(), "uploads", base);
+        //   if (fs.existsSync(abs)) {
+        //     try { fs.unlinkSync(abs); } catch (e) { /* noop */ }
+        //   }
+        // }
+
+        await prisma.taskEntry.delete({ where: { id: entryId } });
+        res.json({ ok: true });
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ message: "Не удалось удалить запись", error: e.message });
+    }
+};
+
+module.exports = { createTaskEntry, getTaskEntries, deleteTaskEntry };

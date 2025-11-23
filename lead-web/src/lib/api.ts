@@ -13,6 +13,7 @@ export function setToken(token: string | null) {
   else localStorage.setItem("token", token);
 }
 
+
 export async function api(path: string, opts: FetchOptions = {}) {
   const headers: HeadersInit = { "Content-Type": "application/json" };
   if (opts.auth) {

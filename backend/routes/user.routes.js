@@ -6,7 +6,22 @@ const { verifyToken, requireRole } = require('../middlewares/auth.middleware');
 
 router.use(verifyToken);
 
-// Получить всех работников
+// Текущий пользователь
+router.get('/me', async (req, res) => {
+    try {
+        // req.user формируется в verifyToken
+        const user = await prisma.user.findUnique({
+            where: { id: Number(req.user.id) },
+            select: { id: true, name: true, email: true, role: true },
+        });
+        if (!user) return res.status(404).json({ message: 'Пользователь не найден' });
+        res.json(user);
+    } catch (err) {
+        res.status(500).json({ message: 'Ошибка', error: err.message });
+    }
+});
+
+// Все работники (как было)
 router.get('/workers', requireRole('ADMIN'), async (req, res) => {
     try {
         const workers = await prisma.user.findMany({
