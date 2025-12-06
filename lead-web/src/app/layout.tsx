@@ -1,3 +1,4 @@
+// src/app/layout.tsx
 import "./globals.css";
 import Topbar from "@/components/Topbar";
 import AppContainer from "@/components/AppContainer";
@@ -13,17 +14,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ru" className={roboto.variable}>
       <body className="min-h-screen bg-slate-50 text-slate-900 font-sans">
+        {/* Шапка проекта */}
         <Topbar />
+        {/* Контент в контейнере: на / — без рамок, на остальных — max-w-7xl */}
         <AppContainer>{children}</AppContainer>
       </body>
     </html>
   );
 }
+
 export const metadata = {
-  // …твои остальные поля
   icons: {
-    icon: '/logo.png',      // обычный фавикон
-    shortcut: '/logo.png',  // <link rel="shortcut icon">
-    apple: '/logo.png',     // для iOS
+    icon: "/logo.png",
+    shortcut: "/logo.png",
+    apple: "/logo.png",
   },
 };

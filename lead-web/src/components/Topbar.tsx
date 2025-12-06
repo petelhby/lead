@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { getToken, setToken } from "@/lib/api";
-import { useRouter, usePathname } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 type Me = {
@@ -15,47 +15,60 @@ type Me = {
 };
 
 export default function Topbar() {
-  const r = useRouter();
   const pathname = usePathname();
+  const isAuthPage = pathname === "/" || pathname.startsWith("/auth");
 
-  // На странице входа верхнее меню не показываем
-  if (pathname === "/") return null;
-
-  // Пост-монтажный флаг (чтобы избежать несоответствий SSR/CSR)
   const [mounted, setMounted] = useState(false);
   const [authed, setAuthed] = useState(false);
-  const [me, setMe] = useState<{ id: number; name?: string; role?: string } | null>(null);
+  const [me, setMe] = useState<Me | null>(null);
   const [loadingMe, setLoadingMe] = useState(false);
 
-  // Инициализируем состояние авторизации
   useEffect(() => {
+    // На страницах авторизации вообще не заморачиваемся с профилем
+    if (isAuthPage) {
+      setMounted(true);
+      setAuthed(false);
+      setMe(null);
+      return;
+    }
+
     setMounted(true);
     try {
       const has = !!getToken();
       setAuthed(has);
       if (has) {
-        // подтягиваем имя
-        fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:3001'}/api/users/me`, {
-          headers: { Authorization: `Bearer ${getToken()}` },
-        })
-          .then(r => r.ok ? r.json() : null)
-          .then(data => setMe(data))
+        fetch(
+          `${process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3001"
+          }/api/users/me`,
+          {
+            headers: { Authorization: `Bearer ${getToken()}` },
+          }
+        )
+          .then((r) => (r.ok ? r.json() : null))
+          .then((data) => setMe((data || null) as Me | null))
           .catch(() => { });
       }
-    } catch { setAuthed(false); }
-  }, []);
+    } catch {
+      setAuthed(false);
+    }
+  }, [isAuthPage]);
 
-  // Подтягиваем профиль, когда есть токен
   useEffect(() => {
+    if (isAuthPage) {
+      setMe(null);
+      return;
+    }
+
     if (!mounted || !authed) {
       setMe(null);
       return;
     }
+
     let cancelled = false;
     (async () => {
       try {
         setLoadingMe(true);
-        const profile = await fetch("/api/users/me", {
+        const profile: Me = await fetch("/api/users/me", {
           headers: { Authorization: `Bearer ${getToken()}` },
         }).then((res) => {
           if (!res.ok) throw new Error("Unauthorized");
@@ -64,7 +77,6 @@ export default function Topbar() {
 
         if (!cancelled) setMe(profile);
       } catch {
-        // Токен мог протухнуть — считаем, что не авторизованы
         if (!cancelled) {
           setMe(null);
           setAuthed(false);
@@ -73,16 +85,29 @@ export default function Topbar() {
         if (!cancelled) setLoadingMe(false);
       }
     })();
+
     return () => {
       cancelled = true;
     };
-  }, [mounted, authed]);
+  }, [mounted, authed, isAuthPage]);
 
   const displayName =
     (me?.name && String(me.name).trim()) ||
     (me?.fullName && String(me.fullName).trim()) ||
     (me?.email && String(me.email).trim()) ||
     (authed ? "Пользователь" : "");
+
+  function logout() {
+    // чистим localStorage
+    setToken(null);
+    // чистим cookie, чтобы middleware перестал считать нас авторизованными
+    document.cookie = "token=; Path=/; Max-Age=0; SameSite=Lax";
+    // жёсткий редирект на страницу входа (дальше уже сработает redirect/middleware)
+    window.location.href = "/";
+  }
+
+  // После всех хуков: если это страница авторизации — шапку не показываем
+  if (isAuthPage) return null;
 
   return (
     <div className="w-full h-12 border-b bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60">
@@ -103,25 +128,26 @@ export default function Topbar() {
             </span>
           </Link>
 
-          {/* Навигация */}
           <nav className="ml-6 hidden sm:flex items-center gap-4 text-sm text-slate-700">
             <Link href="/projects" className="hover:text-[#0160C9]">
               Проекты
             </Link>
-            {/* можно добавить другие пункты */}
+            {/* другие пункты при желании */}
           </nav>
         </div>
 
         {/* Правая зона */}
         <div className="flex items-center gap-3">
-          {me?.name && (
-            <span className="text-sm text-slate-700 hidden sm:inline">{me.name}</span>
+          {displayName && (
+            <span className="text-sm text-slate-700 hidden sm:inline">
+              {displayName}
+            </span>
           )}
           {mounted ? (
             authed ? (
               <button
                 className="text-sm underline text-slate-600 hover:text-slate-900"
-                onClick={() => { setToken(null); setAuthed(false); window.location.href = '/'; }}
+                onClick={logout}
               >
                 Выйти
               </button>

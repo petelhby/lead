@@ -27,49 +27,93 @@ model Project {
   budget      Float?
   status      ProjectStatus @default(IN_PROGRESS)
   deadline    DateTime?
-  createdBy   User          @relation("CreatedProjects", fields: [createdById], references: [id])
+  createdBy   User          @relation("CreatedProjects", fields: [createdById], references: [id], onDelete: Restrict)
   createdById Int
   tasks       Task[]
-  User        User?         @relation(fields: [userId], references: [id])
+  User        User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
   userId      Int?
   createdAt   DateTime      @default(now())
 
-  // ─── Новые/существующие поля карточки проекта ───
+  // карточка проекта
   address       String?
   contactPerson String?
   phone         String?
+  contactEmail  String?
+  notes         String?
 
-  // ✅ Добавили:
-  contactEmail String?
-  notes        String?
+  contracts Contract[]
+  payments  Payment[]
+
+  @@index([createdById])
+  @@index([userId])
+}
+
+model Contract {
+  id        Int      @id @default(autoincrement())
+  projectId Int
+  title     String
+  date      DateTime
+  amount    Decimal  @db.Decimal(18, 2)
+  createdAt DateTime @default(now())
+
+  project  Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  payments Payment[]
+
+  @@index([projectId])
+}
+
+model Payment {
+  id         Int      @id @default(autoincrement())
+  projectId  Int
+  // может быть платеж без привязки к конкретному договору/ДС
+  contractId Int?
+  kind       String // 'Авансовый платеж', 'Оплата по счету', и т.п.
+  date       DateTime
+  amount     Decimal  @db.Decimal(18, 2)
+  createdAt  DateTime @default(now())
+
+  project  Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  // делаем связь опциональной, чтобы соответствовать Int?
+  contract Contract? @relation(fields: [contractId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@index([contractId])
 }
 
 model Task {
   id           Int         @id @default(autoincrement())
   title        String
   description  String?
-  assignedTo   User?       @relation("AssignedTasks", fields: [assignedToId], references: [id])
+  assignedTo   User?       @relation("AssignedTasks", fields: [assignedToId], references: [id], onDelete: SetNull)
   assignedToId Int?
-  createdBy    User?       @relation("CreatedTasks", fields: [userId], references: [id])
+  createdBy    User?       @relation("CreatedTasks", fields: [userId], references: [id], onDelete: SetNull)
   userId       Int?
-  project      Project     @relation(fields: [projectId], references: [id])
+  project      Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
   projectId    Int
   createdAt    DateTime    @default(now())
   dueDate      DateTime
   status       String      @default("Новая")
   entries      TaskEntry[]
+
+  @@index([assignedToId])
+  @@index([userId])
+  @@index([projectId])
 }
 
 model TaskEntry {
   id        Int      @id @default(autoincrement())
   content   String?
   createdAt DateTime @default(now())
-  author    User     @relation(fields: [authorId], references: [id])
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
   authorId  Int
-  task      Task     @relation(fields: [taskId], references: [id])
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   taskId    Int
-  photos    String[]
+  photos    String[] // text[] в Postgres
   report    String
+  files     String[] @default([]) // <-- НОВОЕ: видео/док/архивы и т.п.
+
+  @@index([authorId])
+  @@index([taskId])
 }
 
 enum Role {

@@ -2,6 +2,7 @@ const app = require('./app');
 const path = require('path');
 const fs = require('fs');
 const express = require('express');
+const financeRoutes = require("./routes/finance.routes");
 
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
@@ -26,3 +27,5 @@ app.listen(PORT, '0.0.0.0', async () => {
         console.error('❌ DB connection failed:', err);
     }
 });
+
+app.use("/api", financeRoutes); // или app.use("/api/finance", financeRoutes) — но тогда не забудь путь на фронте

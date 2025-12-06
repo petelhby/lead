@@ -3,20 +3,58 @@ const fs = require("fs");
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
-/** Приводим путь к виду '/uploads/xxx.jpg' + слэши -> '/' */
-function normalizeStoredPath(absOrRel) {
-    if (!absOrRel) return absOrRel;
-    const s = String(absOrRel).replace(/\\/g, "/");
-    if (/^\/uploads\//.test(s)) return s;
-    const name = s.split("/").pop();
-    return name ? `/uploads/${name}` : s;
-}
-
+/** Проверяем, админ ли пользователь */
 function isAdmin(req) {
-    return req?.user?.role === "ADMIN";
+    const r = String(req?.user?.role || "").trim().toUpperCase();
+    return r === "ADMIN" || r === "ROLE_ADMIN" || r === "SUPERADMIN" || r === "SUPER_ADMIN";
 }
 
-/** Создать запись (комментарий и/или фото) */
+/** Безопасно получить базовое имя файла */
+function safeBaseName(p) {
+    if (!p) return "";
+    const s = String(p).replace(/\\/g, "/");
+    return s.split("/").pop() || "";
+}
+
+/** Сконструировать относительный путь для сохранения */
+function buildRelPath(req, fileName) {
+    const clean = safeBaseName(fileName) || "file.bin";
+    // upload.middleware кладёт relDir вроде /uploads/project_12/task_34
+    if (req._uploadCtx?.relDir) {
+        return `${req._uploadCtx.relDir}/${clean}`.replace(/\\/g, "/");
+    }
+    // Фоллбек — просто кладём в /uploads
+    return `/uploads/${clean}`;
+}
+
+/** Разнести загруженные файлы по массивам: photos[] (изображения) и files[] (остальное) */
+function splitFilesByType(req) {
+    const photosIn = Array.isArray(req.files?.photos) ? req.files.photos : [];
+    const filesIn = Array.isArray(req.files?.files) ? req.files.files : [];
+
+    // Если фронт чётко разделил поля — используем как есть
+    const photos = photosIn.map(f => buildRelPath(req, f.filename || f.originalname || f.path));
+    const files = filesIn.map(f => buildRelPath(req, f.filename || f.originalname || f.path));
+
+    // На всякий случай — если прислали в одно поле, разнесём по mimetype
+    const others = []
+        .concat(photosIn.length ? [] : (Array.isArray(req.files) ? req.files : []))
+        .concat(filesIn.length ? [] : (Array.isArray(req.files) ? req.files : []));
+
+    for (const f of others) {
+        if (!f) continue;
+        const mt = String(f.mimetype || "").toLowerCase();
+        const rel = buildRelPath(req, f.filename || f.originalname || f.path);
+        if (mt.startsWith("image/")) photos.push(rel);
+        else files.push(rel);
+    }
+
+    // Убираем пустые и дубликаты
+    const uniq = (arr) => Array.from(new Set(arr.filter(Boolean)));
+    return { photos: uniq(photos), files: uniq(files) };
+}
+
+/** Создать запись (комментарий + файлы) */
 const createTaskEntry = async (req, res) => {
     try {
         if (!req.user?.id) {
@@ -28,19 +66,18 @@ const createTaskEntry = async (req, res) => {
             return res.status(400).json({ message: "Некорректный идентификатор задачи" });
         }
 
-        const report =
-            typeof req.body?.report === "string" ? req.body.report.trim() : "";
+        const report = typeof req.body?.report === "string" ? req.body.report.trim() : "";
 
-        // Ожидаем, что файлы уже сохранены в /uploads (multer.diskStorage в роуте)
-        const photosRaw = (req.files || []).map((f) => f.path || f.filename || "");
-        const photos = photosRaw.map(normalizeStoredPath).filter(Boolean);
+        // Разнесём загруженные файлы
+        const { photos, files } = splitFilesByType(req);
 
         const newEntry = await prisma.taskEntry.create({
             data: {
                 taskId,
-                report,              // пустая строка допустима
-                photos,              // массив строк '/uploads/..'
-                authorId: req.user.id,
+                report,                // текст комментария (может быть пустым)
+                photos,                // массив строк '/uploads/project_X/task_Y/…'
+                files,                 // массив строк '/uploads/project_X/task_Y/…'
+                authorId: Number(req.user.id),
             },
         });
 
@@ -51,11 +88,10 @@ const createTaskEntry = async (req, res) => {
     }
 };
 
-/** Получить все записи задачи (с автором) */
+/** Список записей задачи (с автором) */
 const getTaskEntries = async (req, res) => {
     try {
-        const { id } = req.params;
-        const taskId = Number(id);
+        const taskId = Number(req.params.id);
         if (!taskId) {
             return res.status(400).json({ message: "Некорректный идентификатор задачи" });
         }
@@ -75,11 +111,7 @@ const getTaskEntries = async (req, res) => {
     }
 };
 
-/**
- * Удалить запись:
- *  - ADMIN может удалить любую
- *  - иначе — только автор
- */
+/** Удалить запись (ADMIN — любую; иначе — только свою) */
 const deleteTaskEntry = async (req, res) => {
     try {
         if (!req.user?.id) {
@@ -101,24 +133,22 @@ const deleteTaskEntry = async (req, res) => {
             return res.status(404).json({ message: "Запись не найдена" });
         }
 
-        const can =
-            isAdmin(req) ||
-            (entry.author?.id && entry.author.id === req.user.id);
-
+        const can = isAdmin(req) || (entry.author?.id && entry.author.id === Number(req.user.id));
         if (!can) {
             return res.status(403).json({ message: "Недостаточно прав" });
         }
 
-        // Если захочешь удалять файлы физически — раскомментируй:
-        // (Сохраняем только безопасные базовые имена, чтобы не уйти за пределы каталога)
-        // for (const p of entry.photos || []) {
-        //   if (!p) continue;
-        //   const base = path.basename(p); // защита от '../'
-        //   const abs = path.resolve(process.cwd(), "uploads", base);
-        //   if (fs.existsSync(abs)) {
-        //     try { fs.unlinkSync(abs); } catch (e) { /* noop */ }
-        //   }
-        // }
+        // Если нужно физически удалять файлы — раскомментируй:
+        // const root = path.resolve(process.cwd(), "uploads");
+        // const tryUnlink = (rel) => {
+        //   if (!rel) return;
+        //   const base = safeBaseName(rel);
+        //   // Путь вида /uploads/project_x/task_y/file => удаляем по абсолютному
+        //   const abs = path.join(process.cwd(), rel.replace(/^\//, ""));
+        //   try { if (fs.existsSync(abs)) fs.unlinkSync(abs); } catch {}
+        // };
+        // (entry.photos || []).forEach(tryUnlink);
+        // (entry.files  || []).forEach(tryUnlink);
 
         await prisma.taskEntry.delete({ where: { id: entryId } });
         res.json({ ok: true });

@@ -1,52 +1,70 @@
-// backend/routes/taskEntry.routes.js
 const express = require('express');
 const router = express.Router();
-const fs = require('fs');
-const path = require('path');
-const multer = require('multer');
+
+const {
+    createTask,
+    getTasksForUser,
+    updateTaskReport,
+    getAllTasks,
+    updateTaskStatus,
+    updateTask,
+    getTaskById,
+} = require('../controllers/task.controller');
 
 const {
     createTaskEntry,
     getTaskEntries,
-    deleteTaskEntry,        // ⬅️ добавили
+    deleteTaskEntry,
 } = require('../controllers/taskEntry.controller');
 
-const { verifyToken } = require('../middlewares/auth.middleware');
+const { verifyToken, requireRole } = require('../middlewares/auth.middleware');
+const { uploadPhotosAndFiles } = require('../middlewares/upload.middleware');
 
-// Готовим папку для загрузок
-const UPLOAD_DIR = path.join(process.cwd(), 'uploads');
-fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-
-// Храним файлы на диске, чтобы получить .path
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, UPLOAD_DIR),
-    filename: (req, file, cb) => {
-        const id = req.params.id || req.params.taskId || 'task';
-        const unique = Date.now() + '_' + Math.round(Math.random() * 1e9);
-        const ext = path.extname(file.originalname || '');
-        cb(null, `task_${id}_${unique}${ext}`);
-    },
-});
-
-const upload = multer({
-    storage,
-    limits: { fileSize: 10 * 1024 * 1024, files: 12 },
-    fileFilter: (req, file, cb) => {
-        if (/^image\/(png|jpe?g|gif|webp)$/i.test(file.mimetype)) return cb(null, true);
-        cb(new Error('Only image files are allowed'));
-    },
-});
-
+// Все /tasks требуют авторизации
 router.use(verifyToken);
+
+/* ===========================
+ *           TASKS
+ * =========================== */
+
+// 🔐 Только админ
+router.post('/', requireRole('ADMIN'), createTask);
+router.get('/all', requireRole('ADMIN'), getAllTasks);
+router.patch('/:id/status', requireRole('ADMIN'), updateTaskStatus);
+
+// 👷 Работник
+router.get('/my', getTasksForUser);
+
+// ✅ Одна задача по ID (доступно всем авторизованным, права проверяются внутри контроллера)
+router.get('/:id', getTaskById);
+
+// ✅ Полное обновление задачи
+router.put('/:id', updateTask);
+
+// ✅ Старый отчёт с фото (если ещё используешь; можно оставить для совместимости)
+router.patch('/:id/report',
+    // здесь можно использовать упрощённый загрузчик, но оставим как было
+    // если у тебя был собственный upload.fields([{ name: 'photo' }]) — можешь убрать или заменить
+    (req, res, next) => next(),
+    updateTaskReport
+);
+
+/* ===========================
+ *         TASK ENTRIES
+ *  (комментарии + файлы)
+ * =========================== */
 
 // Список записей задачи
 router.get('/:id/entries', getTaskEntries);
 
-// Создание записи (комментарий + фото)
-// ВАЖНО: имя поля — 'photos' (совпадает с фронтом form.append("photos", file))
-router.post('/:id/entries', upload.array('photos'), createTaskEntry);
+// Добавить запись (multipart: photos[], files[])
+router.post(
+    '/:id/entries',
+    uploadPhotosAndFiles, // кладёт файлы в /uploads и заполняет req.files.photos / req.files.files
+    createTaskEntry
+);
 
-// Удаление записи: /api/tasks/:taskId/entries/:entryId
-router.delete('/:taskId/entries/:entryId', deleteTaskEntry); // ⬅️ добавили
+// Удалить запись
+router.delete('/:taskId/entries/:entryId', deleteTaskEntry);
 
 module.exports = router;
